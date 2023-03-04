@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            html, body {
+                height: 100%;
+            }
+
+            html {
+                display: table;
+                margin: auto;
+            }
+
+            body {
+                display: table-cell;
+                vertical-align: middle;
+            }
+
+            textarea {
+                resize: none;
+                white-space: pre;
+            }
+
+            h1 {
+                text-align: center;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Core Mods JSON Generator</h1>
+        <label>Version Number</label>
+        <input id="versionNumber" type="text">
+        <br><br>
+        <textarea wrap="" id="json-output" rows="40" cols="80" readonly >
+
+        </textarea>
+        <br><br>
+        <button id="generate" onclick="generateJson()">Generate</button>
+        <button onclick="copyToClipboard()">Copy To Clipboard</button>
+        <button onclick="downloadData()">Download File</button>
+    </body>
+    <script type="text/javascript">
+        async function getLatestRelease(owner, repo) {
+            return (await (await fetch(`https://api.github.com/repos/${owner}/${repo}/releases`, {method: 'GET', headers: { Accept: "application/json" }})).json())[0];
+        }
+
+        function getQmodAsset(release) {
+            return release["assets"].filter(asset => asset["name"].endsWith(".qmod"))[0];
+        }
+
+        function getReleaseVersion(release) {
+            return release["tag_name"].replace('v', '');
+        }
+
+        function getReleaseFilename(release, asset) {
+            const version = getReleaseVersion(release);
+            const formattedVersion = version.split('.').join('_');
+            const name = asset["name"].replace(".qmod", '');
+
+            return `${name}_${formattedVersion}.qmod`;
+        }
+
+        function getDownloadUrl(asset) {
+            return asset["browser_download_url"];
+        }
+
+        async function createCoreModJsonObject(id, owner, repo) {
+            const release = await getLatestRelease(owner, repo);
+            const asset = getQmodAsset(release);
+
+            const version = getReleaseVersion(release);
+            const downloadLink = getDownloadUrl(asset);
+            const filename = getReleaseFilename(release, asset);
+
+            const obj = {
+                "id": id,
+                "version": version,
+                "downloadLink": downloadLink,
+                "filename": filename
+            };
+
+            return obj;
+        }
+
+        async function generateJson() {
+            const generateButton = document.getElementById("generate");
+            generateButton.disabled = true;
+
+            const versionNumber = document.getElementById("versionNumber").value;
+            
+            const customTypes = await createCoreModJsonObject("custom-types", "sc2ad", "Il2CppQuestTypePatching");
+            const codegen = await createCoreModJsonObject("codegen", "sc2ad", "BeatSaber-Quest-Codegen");
+            const questui = await createCoreModJsonObject("questui", "darknight1050", "QuestUI");
+            const datakeeper = await createCoreModJsonObject("datakeeper", "Metalit", "PlayerDataKeeper");
+            const songloader = await createCoreModJsonObject("songloader", "darknight1050", "SongLoader");
+            const pinkcore = await createCoreModJsonObject("pinkcore", "BSMGPink", "PinkCore");
+            const songdownloader = await createCoreModJsonObject("songdownloader", "darknight1050", "SongDownloader");
+            const modlist = await createCoreModJsonObject("mod-list", "Lauriethefish", "ModList");
+            const playlistcore = await createCoreModJsonObject("playlistcore", "Metalit", "PlaylistCore");
+            const playlistmanager = await createCoreModJsonObject("playlistmanager", "Metalit", "PlaylistManager");
+
+            const latestCoreMods = [
+                customTypes,
+                codegen,
+                questui,
+                datakeeper,
+                songloader,
+                pinkcore,
+                songdownloader,
+                modlist,
+                playlistcore,
+                playlistmanager
+            ];
+            
+            let obj = await (await fetch("https://oculusdb.rui2015.me/api/coremodsproxy", {method: 'GET', headers: { Accept: "application/json" }})).json();
+            if (obj.hasOwnProperty(versionNumber)) {
+                alert("That version already exists in the core-mods.json");
+                return;
+            }
+
+            obj[versionNumber] = {
+                "lastUpdated": new Date().toISOString(),
+                "mods": latestCoreMods
+            }
+
+            const str = JSON.stringify(obj, null, 2);
+
+            document.getElementById("json-output").textContent = str;
+            generateButton.disabled = false;
+        }
+
+        function copyToClipboard() {
+            const out = document.getElementById("json-output");
+            out.select();
+            document.execCommand("copy");
+        }
+
+        function download(filename, text) {
+            var element = document.createElement('a');
+            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+            element.setAttribute('download', filename);
+  
+            element.style.display = 'none';
+            document.body.appendChild(element);
+  
+            element.click();
+  
+            document.body.removeChild(element);
+        }
+
+        function downloadData() {
+            const data = document.getElementById("json-output").textContent;
+            console.log(data);
+            download("core-mods.json", data);
+        }
+    </script>
+</html>
